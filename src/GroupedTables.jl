@@ -1,5 +1,7 @@
 module GroupedTables
 
-# Write your package code here.
+export grouped_table
+
+include("grouped-tables-nb.jl")
 
 end

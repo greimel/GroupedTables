@@ -1,6 +1,3 @@
-using GroupedTables
-using Test
+using TestItemRunner
 
-@testset "GroupedTables.jl" begin
-    # Write your tests here.
-end
+@run_package_tests

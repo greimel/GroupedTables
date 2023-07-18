@@ -10,20 +10,11 @@ using DataFrames
 # ╔═╡ 9b69006f-5e8c-4b19-b32f-fd41d7e2e8f9
 using LaTeXTabulars
 
-# ╔═╡ 5d6754a3-a657-4083-983d-06dbd3c46409
-using TestItems
-
-# ╔═╡ a82bbe91-d85b-4fd8-9196-3f11bb7665aa
-using PlutoTest
-
-# ╔═╡ de9e7002-feb7-4431-8fe5-ad630042fc76
-# ╠═╡ skip_as_script = true
-#=╠═╡
-using DataFrameMacros
-  ╠═╡ =#
-
 # ╔═╡ c4829b4d-a999-409c-b259-562079b5345e
 using Chain
+
+# ╔═╡ 8a6f584d-7cc7-4c4b-b548-fabe45612ee2
+using DataAPI: levels
 
 # ╔═╡ f1df3c8b-0551-4e91-90bd-70a9d36528dc
 # ╠═╡ skip_as_script = true
@@ -32,10 +23,10 @@ using PlutoUI
   ╠═╡ =#
 
 # ╔═╡ 36b9fd64-5802-4fe8-9378-55d7ed2c7cbf
+# ╠═╡ skip_as_script = true
+#=╠═╡
 using LaTeXStrings
-
-# ╔═╡ 8a6f584d-7cc7-4c4b-b548-fabe45612ee2
-using CategoricalArrays
+  ╠═╡ =#
 
 # ╔═╡ c8ebbb34-6804-4cda-90eb-ccd33dd1be72
 md"""
@@ -238,8 +229,9 @@ function basic_components(
 	)
 end
 
-# ╔═╡ 9c28d2d8-14d5-46ba-b8b8-1f9efeda2b5b
+# ╔═╡ 3a08e6fa-46ca-4615-b202-e211f4cce424
 function table_components(tbl; row_group_label_var=missing, column_label_var, value_var, specs...)
+	
 	specs = NamedTuple(specs)
 	
 	overall_row_labels = levels(getproperty(tbl, specs.row_label_var))
@@ -265,7 +257,7 @@ function table_components(tbl; row_group_label_var=missing, column_label_var, va
 	(; top_part, body_vec, N)
 end
 
-# ╔═╡ 2e178237-c3c5-4761-8e70-e3af986bd184
+# ╔═╡ 7a7879f2-6117-4f9f-8080-0effa0d27711
 function grouped_table(tbl; caption=missing, specs...)
 
 	(; top_part, body_vec, N) = table_components(tbl; specs...)
@@ -292,23 +284,24 @@ function grouped_table(tbl; caption=missing, specs...)
 	end
 end
 
-# ╔═╡ c7a0912e-0bf0-40ca-a9ad-54ad9db43ea7
-md"""
-### Some unit tests
-"""
-
 # ╔═╡ d0624fa7-c9e3-444c-9b5e-6e6372a213c2
 md"""
 ### Test
 """
 
-# ╔═╡ d7a7f15a-7c71-44db-9269-ad41505623d5
-md"""
-### Test
-"""
+# ╔═╡ 5e6db61d-c3ed-4f9c-8fac-8daa8799445a
+#=╠═╡
+let
+	row_label_var = :description
+	spanner_column_label_var = Symbol("Group_1")
+	gdf = groupby(params_df, spanner_column_label_var)[1]
+
+	table_helper(gdf, row_label_var, spanner_column_label_var)
+end
+  ╠═╡ =#
 
 # ╔═╡ 242b9caf-f630-413d-9db7-2fad867621f0
-# ╠═╡ skip_as_script = true
+# ╠═╡ disabled = true
 #=╠═╡
 df0 = DataFrame(
 	description = ["average life-time", "discount factor", "utility weight of housing", "elasticity of substitution", "strength of the comparison motive", "housing supply elasticity", "depreciation rate of housing", "flow of land permits"],
@@ -335,71 +328,6 @@ params_df = @chain df0 begin
 end
   ╠═╡ =#
 
-# ╔═╡ 713d1275-d330-4dea-aefd-bee4b402f2fd
-#=╠═╡
-@chain params_df begin
-	@subset(:group == "Preferences", :Group_2 == "AA", :Group_3 == "Red")
-	select(Not([:group, :Group_2, :Group_3, :calibration]))
-	unstack(:Group_1, :value)
-	table_helper(:description)
-	@aside begin
-		@test _.headers == ["good" "bad"]
-		@test _.body == [45 1; 0.05 0.022; 0.5 1.0; 1.0 ""; 0.31 0.15]
-		@test _.row_labels[4:5] == ["elasticity of substitution", "strength of the comparison motive"]
-	end	
-end
-  ╠═╡ =#
-
-# ╔═╡ 9d124576-027d-466f-b932-71d57c8621d8
-#=╠═╡
-@chain params_df begin
-	@subset(:group == "Preferences", :Group_2 == "AA", :Group_3 == "Red")
-	select(Not(["group", "Group_2", "Group_3", "calibration"]))
-	unstack(:Group_1, :value)
-	table_helper_row_group(_; row_label_var="description", overall_row_labels=levels(_.description))
-	@aside begin
-		@test only(_.headers) == ["good" "bad"]
-		@test [_.row_labels _.body][2:4,:] == ["discount factor" 0.05 0.022; "utility weight of housing" 0.5 1.0; "elasticity of substitution" 1.0 ""]
-		@test _.stubhead_label == "description"
-	end	
-end
-  ╠═╡ =#
-
-# ╔═╡ 19e71ca6-a249-4238-a6d2-6e19e65de374
-#=╠═╡
-@chain params_df begin
-	@subset(:group == "Preferences", :Group_3 == "Red")
-	select(Not([:group, :calibration, :Group_3]))
-	@transform!(
-		@subset(:Group_2 == "BB", :Group_1 == "bad"),
-		:Group_1 = "mediocre"
-	)
-	unstack(:Group_1, :value)
-	table_helper_row_group(_; row_label_var="description", spanner_column_label_var=:Group_2, overall_row_labels=levels(_.description))
-	@aside begin
-		@test _.spanner_column_labels == ["AA", "BB"]
-		@test only(unique(_.headers)) == ["good" "bad" "mediocre"]
-		@test [_.row_labels _.body][2:4,1:4] == [
-			"discount factor"            0.05 0.022 "";
-			"utility weight of housing"  0.5  1.0   ""; 
-			"elasticity of substitution" 1.0  ""    ""]
-		@test _.stubhead_label == "description"
-		@test findall(.!(vcat(_.nonempty_columns...))) == [3, 5]
-	end
-end
-  ╠═╡ =#
-
-# ╔═╡ 5e6db61d-c3ed-4f9c-8fac-8daa8799445a
-#=╠═╡
-let
-	row_label_var = :description
-	spanner_column_label_var = Symbol("Group_1")
-	gdf = groupby(params_df, spanner_column_label_var)[1]
-
-	table_helper(gdf, row_label_var, spanner_column_label_var)
-end
-  ╠═╡ =#
-
 # ╔═╡ 235e7816-b0d2-4a98-bba5-12351f9a8d51
 md"""
 # Appendix
@@ -416,12 +344,9 @@ md"""
 """
 
 # ╔═╡ 1e552946-f9df-43c7-b4ad-9690ff4396c7
-import tectonic_jll, Poppler_jll
-
-# ╔═╡ 70cd59c5-da83-48a5-8603-76399e5a8a60
-# ╠═╡ disabled = true
+# ╠═╡ skip_as_script = true
 #=╠═╡
-using PrettyTables: PrettyTables, pretty_table
+import tectonic_jll, Poppler_jll
   ╠═╡ =#
 
 # ╔═╡ 95fa9a3c-5ea5-4593-b94e-395c46d20d32
@@ -494,37 +419,8 @@ Here are some table notes.
 """ |> preview_latex_document
   ╠═╡ =#
 
-# ╔═╡ fb2c1d60-b5a1-4371-91c0-18d43cb7248a
-# taken from MakieTeX
-function pdf2svg(pdf::Vector{UInt8}; page=1, kwargs...)
-     pdftocairo = Poppler_jll.pdftocairo() do exe
-         open(`$exe -f $page -l $page -svg - -`, "r+")
-     end
-
-     write(pdftocairo, pdf)
-
-     close(pdftocairo.in)
-
-     return read(pdftocairo.out, String)
- end
-
-# ╔═╡ 6c680a1a-5ac5-4c2d-bb28-d1e3a5191cab
-begin
-	struct HTMLDocument
-	    embedded
-	end
-	
-	function Base.show(io::IO, mime::MIME"text/html", doc::HTMLDocument)
-	    println(io, "<html>")
-	    show(io, mime, doc.embedded)
-	    println(io, "</html>")
-	end
-end
-
-# ╔═╡ b7b1d236-0eeb-4a00-acfe-f7395d130f7b
-pdf2svg(pdf::String) = pdf2svg(Vector{UInt8}(pdf))
-
 # ╔═╡ 526f3979-2bcb-4f1e-af99-8411d0d61afa
+#=╠═╡
 function preview_latex_document(buffer; show_messages = false, basefile = tempname())
 	@info basefile
 	texfile = basefile * ".tex"
@@ -550,146 +446,73 @@ function preview_latex_document(buffer; show_messages = false, basefile = tempna
 	pdf2svg(read(pdffile)) |> HTML |> HTMLDocument
 
 end
+  ╠═╡ =#
 
 # ╔═╡ 0e1fa8e2-7b93-419c-a70a-f8e80f435c89
+#=╠═╡
 function preview_latex_table(content; packages=String[], kwargs...)
 	preview_latex_document(table_buffer(content * ""; packages); kwargs...)
 end
+  ╠═╡ =#
 
-# ╔═╡ 0a49795d-9073-4475-9be1-994890bb39db
+# ╔═╡ fb2c1d60-b5a1-4371-91c0-18d43cb7248a
 #=╠═╡
-let
-	row_label_var = :description
-	row_group_label_var = :group
-	column_label_var = :Group_1
-	value_var = :value
-	spanner_column_label_var = :Group_2
-	caption = "Here's some nice caption"
+# taken from MakieTeX
+function pdf2svg(pdf::Vector{UInt8}; page=1, kwargs...)
+     pdftocairo = Poppler_jll.pdftocairo() do exe
+         open(`$exe -f $page -l $page -svg - -`, "r+")
+     end
+
+     write(pdftocairo, pdf)
+
+     close(pdftocairo.in)
+
+     return read(pdftocairo.out, String)
+ end
+  ╠═╡ =#
+
+# ╔═╡ 6c680a1a-5ac5-4c2d-bb28-d1e3a5191cab
+# ╠═╡ disabled = true
+#=╠═╡
+begin
+	struct HTMLDocument
+	    embedded
+	end
 	
-	df = @chain params_df begin
-		@subset(:Group_2 == "AA", :Group_3 == "Red")
-		select(Not(["calibration", "Group_3"]))
+	function Base.show(io::IO, mime::MIME"text/html", doc::HTMLDocument)
+	    println(io, "<html>")
+	    show(io, mime, doc.embedded)
+	    println(io, "</html>")
 	end
-	
-	specs = (; row_group_label_var, spanner_column_label_var, column_label_var, value_var, row_label_var)
-	grouped_table(df; caption, specs...) |> preview_latex_table
 end
   ╠═╡ =#
 
-# ╔═╡ ea89cea7-de22-4d27-87c1-3c2a4f07ec1b
+# ╔═╡ b7b1d236-0eeb-4a00-acfe-f7395d130f7b
+# ╠═╡ disabled = true
 #=╠═╡
-let
-	specs = (;
-		row_label_var = :description,
-		#row_group_label_var = :group,
-		column_label_var = :Group_3,
-		value_var = :value,
-		spanner_column_label_var = :Group_2
-	)
-
-	df = @chain params_df begin
-		DataFrame
-		@transform!(
-			@subset(:Group_2 == "BB", :Group_3 == "Blue"),
-			:Group_3 = "Green"
-		)
-		@subset(#:group=="Preferences", 
-			:Group_1 == "good")
-		select(Not([:Group_1, :group, :calibration]))
-	end
-
-	#specs = (; spanner_column_label_var, column_label_var, value_var, row_label_var)
-	grouped_table(df; specs...) |> preview_latex_table
-end
-  ╠═╡ =#
-
-# ╔═╡ fcfc76e5-013a-40da-bb98-30deda6f58a4
-#=╠═╡
-let
-	row_label_var = :description
-	row_group_label_var = :group
-	column_label_var = :Group_1
-	value_var = :value
-	spanner_column_label_var = :Group_2
-
-	df = @chain params_df begin
-		@subset(:Group_2 == "BB", :Group_3  == "Red")
-		select(Not([:Group_2, :Group_3, :calibration]))
-	end
-	specs = (; column_label_var, value_var, row_label_var, row_group_label_var)
-	grouped_table(df; specs...) |> preview_latex_table
-end
-  ╠═╡ =#
-
-# ╔═╡ d5037d65-ba82-48a7-99be-2c431ac5e403
-#=╠═╡
-let
-	row_label_var = :description
-	row_group_label_var = :Group_3 #:group
-	column_label_var = :Group_1
-	value_var = :value
-	spanner_column_label_var = :Group_2
-
-	df = @chain params_df begin
-		@subset(:group == "Preferences")
-		select(Not(["calibration", "group"]))
-		@transform!(
-			@subset(:Group_2 == "BB", :Group_1 == "bad", :Group_3 == "Red"),
-			:Group_1 = "mediocre"
-		)
-#		@subset(:group == "Preferences", {"Group 3"} == "Red")
-#		@subset(!(:Group_3 == "Red" && :Group_2 == "AA" && :Group_1 == "good"))
-#		select(Not(["calibration", "group", "Group 3"]))
-	end
-	specs = (; column_label_var, value_var, row_label_var, row_group_label_var, spanner_column_label_var)
-	grouped_table(df; specs...) |> preview_latex_table
-end
-  ╠═╡ =#
-
-# ╔═╡ 11ba24e0-d15a-4966-82e8-f97054ee76ee
-#=╠═╡
-let
-	row_label_var = :description
-	#row_group_label_var = :group
-	column_label_var = :Group_1
-	value_var = :value
-	spanner_column_label_var = :Group_2
-
-	df = @chain params_df begin
-		@subset(:group == "Preferences", :Group_2 == "AA", :Group_3 == "Red")
-		select(Not([:group, :Group_2, :Group_3, :calibration]))
-	end
-	specs = (; column_label_var, value_var, row_label_var)
-	grouped_table(df; specs...) |> preview_latex_table
-end
+pdf2svg(pdf::String) = pdf2svg(Vector{UInt8}(pdf))
   ╠═╡ =#
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
-CategoricalArrays = "324d7699-5711-5eae-9e2f-1d82baa6b597"
 Chain = "8be319e6-bccf-4806-a6f7-6fae938471bc"
-DataFrameMacros = "75880514-38bc-4a95-a458-c2aea5a3a702"
+DataAPI = "9a962f9c-6df0-11e9-0e5d-c546b8b5ee8a"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
 LaTeXTabulars = "266f59ce-6e72-579c-98bb-27b39b5c037e"
-PlutoTest = "cb4044da-4d16-4ffa-a6a3-8cad7f73ebdc"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 Poppler_jll = "9c32591e-4766-534b-9725-b71a8799265b"
-TestItems = "1c621080-faea-4a02-84b6-bbd5e436b8fe"
 tectonic_jll = "d7dd28d6-a5e6-559c-9131-7eb760cdacc5"
 
 [compat]
-CategoricalArrays = "~0.10.8"
 Chain = "~0.5.0"
-DataFrameMacros = "~0.4.1"
+DataAPI = "~1.15.0"
 DataFrames = "~1.5.0"
 LaTeXStrings = "~1.3.0"
 LaTeXTabulars = "~0.1.2"
-PlutoTest = "~0.2.2"
 PlutoUI = "~0.7.51"
 Poppler_jll = "~21.9.0"
-TestItems = "~0.1.1"
 tectonic_jll = "~0.13.1"
 """
 
@@ -699,7 +522,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.9.2"
 manifest_format = "2.0"
-project_hash = "145c76806dd8b50da41590874840e0ce688d1f01"
+project_hash = "2b8c2acf385c94013a43c4466f730c21efd6d2ea"
 
 [[deps.AbstractPlutoDingetjes]]
 deps = ["Pkg"]
@@ -733,24 +556,6 @@ deps = ["Artifacts", "Bzip2_jll", "CompilerSupportLibraries_jll", "Fontconfig_jl
 git-tree-sha1 = "4b859a208b2397a7a623a03449e4636bdb17bcf2"
 uuid = "83423d85-b0ee-5818-9007-b63ccbeb887a"
 version = "1.16.1+1"
-
-[[deps.CategoricalArrays]]
-deps = ["DataAPI", "Future", "Missings", "Printf", "Requires", "Statistics", "Unicode"]
-git-tree-sha1 = "1568b28f91293458345dabba6a5ea3f183250a61"
-uuid = "324d7699-5711-5eae-9e2f-1d82baa6b597"
-version = "0.10.8"
-
-    [deps.CategoricalArrays.extensions]
-    CategoricalArraysJSONExt = "JSON"
-    CategoricalArraysRecipesBaseExt = "RecipesBase"
-    CategoricalArraysSentinelArraysExt = "SentinelArrays"
-    CategoricalArraysStructTypesExt = "StructTypes"
-
-    [deps.CategoricalArrays.weakdeps]
-    JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
-    RecipesBase = "3cdcf5f2-1ef4-517c-9805-6587b60abb01"
-    SentinelArrays = "91c51154-3ec4-41a3-a24f-3f23e20d615c"
-    StructTypes = "856f2bd8-1eba-4b0a-8007-ebc267875bd4"
 
 [[deps.Chain]]
 git-tree-sha1 = "8c4920235f6c561e401dfe569beb8b924adad003"
@@ -787,12 +592,6 @@ version = "4.1.1"
 git-tree-sha1 = "8da84edb865b0b5b0100c0666a9bc9a0b71c553c"
 uuid = "9a962f9c-6df0-11e9-0e5d-c546b8b5ee8a"
 version = "1.15.0"
-
-[[deps.DataFrameMacros]]
-deps = ["DataFrames", "MacroTools"]
-git-tree-sha1 = "5275530d05af21f7778e3ef8f167fb493999eea1"
-uuid = "75880514-38bc-4a95-a458-c2aea5a3a702"
-version = "0.4.1"
 
 [[deps.DataFrames]]
 deps = ["Compat", "DataAPI", "Future", "InlineStrings", "InvertedIndices", "IteratorInterfaceExtensions", "LinearAlgebra", "Markdown", "Missings", "PooledArrays", "PrettyTables", "Printf", "REPL", "Random", "Reexport", "SentinelArrays", "SnoopPrecompile", "SortingAlgorithms", "Statistics", "TableTraits", "Tables", "Unicode"]
@@ -1066,12 +865,6 @@ git-tree-sha1 = "65f28ad4b594aebe22157d6fac869786a255b7eb"
 uuid = "6c6e2e6c-3030-632d-7369-2d6c69616d65"
 version = "0.1.4"
 
-[[deps.MacroTools]]
-deps = ["Markdown", "Random"]
-git-tree-sha1 = "42324d08725e200c23d4dfb549e0d5d89dede2d2"
-uuid = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
-version = "0.5.10"
-
 [[deps.Markdown]]
 deps = ["Base64"]
 uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
@@ -1142,12 +935,6 @@ deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 version = "1.9.2"
 
-[[deps.PlutoTest]]
-deps = ["HypertextLiteral", "InteractiveUtils", "Markdown", "Test"]
-git-tree-sha1 = "17aa9b81106e661cffa1c4c36c17ee1c50a86eda"
-uuid = "cb4044da-4d16-4ffa-a6a3-8cad7f73ebdc"
-version = "0.2.2"
-
 [[deps.PlutoUI]]
 deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "JSON", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
 git-tree-sha1 = "b478a748be27bd2f2c73a7690da219d0844db305"
@@ -1200,12 +987,6 @@ uuid = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 git-tree-sha1 = "45e428421666073eab6f2da5c9d310d99bb12f9b"
 uuid = "189a3867-3050-52da-a836-e630ba90ab69"
 version = "1.2.2"
-
-[[deps.Requires]]
-deps = ["UUIDs"]
-git-tree-sha1 = "838a3a4188e2ded87a4f9f184b4b0d78a1e91cb7"
-uuid = "ae029012-a4dd-5104-9daa-d747884805df"
-version = "1.3.0"
 
 [[deps.SHA]]
 uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
@@ -1279,11 +1060,6 @@ version = "1.10.0"
 [[deps.Test]]
 deps = ["InteractiveUtils", "Logging", "Random", "Serialization"]
 uuid = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
-
-[[deps.TestItems]]
-git-tree-sha1 = "8621ba2637b49748e2dc43ba3d84340be2938022"
-uuid = "1c621080-faea-4a02-84b6-bbd5e436b8fe"
-version = "0.1.1"
 
 [[deps.Tricks]]
 git-tree-sha1 = "aadb748be58b492045b4f56166b5188aa63ce549"
@@ -1410,9 +1186,11 @@ version = "0.13.1+0"
 # ╟─c8ebbb34-6804-4cda-90eb-ccd33dd1be72
 # ╠═470f9829-703d-4d88-bb33-3ac63edeebd9
 # ╠═9b69006f-5e8c-4b19-b32f-fd41d7e2e8f9
+# ╠═c4829b4d-a999-409c-b259-562079b5345e
+# ╠═8a6f584d-7cc7-4c4b-b548-fabe45612ee2
 # ╟─377705b3-8612-47df-b2f4-8394eeb880e3
-# ╠═2e178237-c3c5-4761-8e70-e3af986bd184
-# ╠═9c28d2d8-14d5-46ba-b8b8-1f9efeda2b5b
+# ╠═7a7879f2-6117-4f9f-8080-0effa0d27711
+# ╠═3a08e6fa-46ca-4615-b202-e211f4cce424
 # ╟─8c8c7f03-11c9-4258-9303-fe8d2dbd484d
 # ╠═c94f9cfa-3ef4-4a7d-a350-188d64492be3
 # ╟─085e7681-b1e2-48c6-a024-7ffe3205a96a
@@ -1426,22 +1204,8 @@ version = "0.13.1+0"
 # ╠═95fbbb01-f3fa-46d0-a403-50140ae92cfe
 # ╠═fcd84f30-2e4f-47f7-8cb5-5a8ae73355a5
 # ╠═b0b4453b-9fdb-4f21-8f10-8efeb0bd1163
-# ╟─c7a0912e-0bf0-40ca-a9ad-54ad9db43ea7
-# ╠═5d6754a3-a657-4083-983d-06dbd3c46409
-# ╠═a82bbe91-d85b-4fd8-9196-3f11bb7665aa
-# ╠═713d1275-d330-4dea-aefd-bee4b402f2fd
-# ╠═9d124576-027d-466f-b932-71d57c8621d8
-# ╠═19e71ca6-a249-4238-a6d2-6e19e65de374
 # ╟─d0624fa7-c9e3-444c-9b5e-6e6372a213c2
-# ╠═0a49795d-9073-4475-9be1-994890bb39db
-# ╠═de9e7002-feb7-4431-8fe5-ad630042fc76
-# ╠═ea89cea7-de22-4d27-87c1-3c2a4f07ec1b
-# ╠═fcfc76e5-013a-40da-bb98-30deda6f58a4
-# ╠═d5037d65-ba82-48a7-99be-2c431ac5e403
-# ╠═11ba24e0-d15a-4966-82e8-f97054ee76ee
 # ╠═5e6db61d-c3ed-4f9c-8fac-8daa8799445a
-# ╟─d7a7f15a-7c71-44db-9269-ad41505623d5
-# ╠═c4829b4d-a999-409c-b259-562079b5345e
 # ╠═242b9caf-f630-413d-9db7-2fad867621f0
 # ╠═cc264088-16bb-4487-ac24-dd2a17708673
 # ╟─235e7816-b0d2-4a98-bba5-12351f9a8d51
@@ -1449,12 +1213,10 @@ version = "0.13.1+0"
 # ╠═f9d0c823-7443-48fc-9c0a-d1407e4ea2ae
 # ╟─311d093a-be4d-4c98-b5d5-91038d37bf5c
 # ╠═1e552946-f9df-43c7-b4ad-9690ff4396c7
-# ╠═70cd59c5-da83-48a5-8603-76399e5a8a60
 # ╠═95fa9a3c-5ea5-4593-b94e-395c46d20d32
 # ╠═ad3cccf0-4e78-4e70-b4c9-95d632340384
 # ╠═6a422d82-db89-4345-a74e-d722224aa0f6
 # ╠═36b9fd64-5802-4fe8-9378-55d7ed2c7cbf
-# ╠═8a6f584d-7cc7-4c4b-b548-fabe45612ee2
 # ╠═f1fa298f-f442-4d97-946b-99987debde4f
 # ╠═526f3979-2bcb-4f1e-af99-8411d0d61afa
 # ╠═0e1fa8e2-7b93-419c-a70a-f8e80f435c89
