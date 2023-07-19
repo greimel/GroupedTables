@@ -1,6 +1,6 @@
 module TestData
 
-export params_df
+export params_df, model_fit_df
 
 using Chain
 using DataFrames
@@ -27,6 +27,21 @@ params_df = @chain df0 begin
 	@transform(:value = round(:value, sigdigits=2))
 	@aside _[10:5:64,:value] .= NaN
 	@subset!(!isnan(:value))
+end
+
+model_fit_df0 = DataFrame(
+	Moment = ["Employment share", "Expenditure share", "Mortgage-to-income"],
+	Target = [0.05, 0.162, 0.462],
+	Source = ["Kaplan et al. (2020)", "CEX (1982)", "DINA (1980)"],
+	Baseline = [0.04, 0.15, 0.45],
+	Extension = [0.06, 0.17, 0.47]
+)
+
+model_fit_df = @chain model_fit_df0 begin
+	stack(["Baseline", "Extension"], variable_name = "version", value_name = "Group 1")
+	@transform("Group 2" = @bycol reverse({"Group 1"}))
+	stack(["Group 1", "Group 2"], variable_name = :spanner)
+	@transform(:row_group = :Moment == "Employment share" ? "AAA" : "BBB")
 end
 
 end

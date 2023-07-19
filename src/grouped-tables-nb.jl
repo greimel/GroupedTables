@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.26
+# v0.19.27
 
 using Markdown
 using InteractiveUtils
@@ -15,6 +15,18 @@ using Chain
 
 # ╔═╡ 8a6f584d-7cc7-4c4b-b548-fabe45612ee2
 using DataAPI: levels
+
+# ╔═╡ 2470bd26-71c9-4e89-aa0a-7919664a303f
+# ╠═╡ skip_as_script = true
+#=╠═╡
+using DataFrameMacros
+  ╠═╡ =#
+
+# ╔═╡ 9e0a05f9-113d-482c-85b9-3f4017fadce6
+# ╠═╡ skip_as_script = true
+#=╠═╡
+using CategoricalArrays: categorical, levels!
+  ╠═╡ =#
 
 # ╔═╡ f1df3c8b-0551-4e91-90bd-70a9d36528dc
 # ╠═╡ skip_as_script = true
@@ -44,12 +56,12 @@ md"""
 """
 
 # ╔═╡ c94f9cfa-3ef4-4a7d-a350-188d64492be3
-function construct_body(row_labels, body, row_group_label, N)
-	mapreduce(vcat, zip(row_labels, body, row_group_label)) do (rg_row_labels, rg_body, rg_label)
+function construct_body(row_labels, body, extra_body, row_group_label, N)
+	mapreduce(vcat, zip(row_labels, body, extra_body, row_group_label)) do (rg_row_labels, rg_body, rg_xtr_body, rg_label)
 		label = ismissing(rg_label) ? [] : [[MultiColumn(N+1, :l, "\\emph{$rg_label}")]]
 		[
 			label..., 
-			[rg_row_labels rg_body]
+			isempty(rg_xtr_body) ? [rg_row_labels rg_body] : [rg_row_labels rg_body rg_xtr_body]
 		]
 	end
 end
@@ -61,24 +73,24 @@ md"""
 
 # ╔═╡ d10afd7a-1066-41db-8914-ca3ff760cfbe
 # construct top part with spanner column labels
-function construct_top_part(spanner_column_labels, stubhead_label, headers)
+function construct_top_part(spanner_column_labels, stubhead_label, headers, extra_headers)
 	ns = length.(headers)
 	cns = cumsum([1; ns])
 	
 	[
 		# spanner column labels
-		[stubhead_label; MultiColumn.(ns, :c, spanner_column_labels)],
+		[""; MultiColumn.(ns, :c, spanner_column_labels)],
 		# broken midrules
 		(CMidRule("l{2pt}r{2pt}", cns[i] + 1 , cns[i+1]) for i ∈ 1:(length(cns)-1))...,
 		# headers
-		["" headers...]
+		[stubhead_label headers... extra_headers...]
 	]
 end
 
 # ╔═╡ 080ec2da-43ec-4fc6-b3a5-f17d186b1cbc
 # construct top part without spanner column labels
-construct_top_part(spanner_column_labels::Array{Missing}, stubhead_label, headers) =
-	[[stubhead_label headers...]]
+construct_top_part(spanner_column_labels::Array{Missing}, stubhead_label, headers, extra_headers) =
+	[[stubhead_label headers... extra_headers...]]
 
 # ╔═╡ e4303bac-27cb-4c9c-b08a-58ea221d6d77
 md"""
@@ -124,7 +136,8 @@ end
 
 # ╔═╡ fcd84f30-2e4f-47f7-8cb5-5a8ae73355a5
 function table_helper_row_group(
-			wide_tbl; 
+			wide_tbl;
+			extra_columns = Symbol[],
 			spanner_column_label_var=missing,
 			row_label_var, overall_row_labels
 		)
@@ -138,25 +151,35 @@ function table_helper_row_group(
 	end
 
 	contents = map(grouped_tbl) do (gkey, tbl)
+		xtra = select(tbl, extra_columns)
+		tbl  = select(tbl, Not(extra_columns))
+		
 		out = table_helper(
 			drop_if_present(tbl, spanner_column_label_var), 
 			row_label_var, row_labels)
 		spanner_column_label = ismissing(gkey) ? missing : only(values(gkey))
-		(; out..., spanner_column_label)
+		(; out..., spanner_column_label, xtra)
 	end |> DataFrame
 
+	xtra = only(unique(contents.xtra))
+	extra_headers = reshape(names(xtra), 1, :)
+	extra_body = Matrix(xtra)
+	
 	# determine non-empty columns
 	body = hcat(contents.body...)
+
 	nonempty_columns = map(contents.body) do b
 		any.(!=(""), eachcol(b))
 	end
-	
+
 	(; spanner_column_labels = contents.spanner_column_label, 
-		contents.headers, 
-		row_labels_and_body = [row_labels body],
+		contents.headers,
 		row_labels, body,
+		extra_headers,
+		extra_body,
+#		row_labels_and_body = [row_labels body],
 		stubhead_label = string(row_label_var),
-		nonempty_columns
+		nonempty_columns,		
 	)
 
 end
@@ -180,7 +203,8 @@ function basic_components(
 	)
 	
 	(; 
-		body, headers,
+		body, headers, contents.extra_headers,
+		extra_body = [contents.extra_body],
 		contents.spanner_column_labels,
 		contents.stubhead_label,
 		row_labels = [contents.row_labels],
@@ -219,9 +243,11 @@ function basic_components(
 		only(unique(contents.headers)),
 		nonempty_columns
 	)
-	
+
 	(; 
-		body, headers,
+		body, headers, 
+		extra_headers = only(unique(contents.extra_headers)),
+		contents.extra_body,
 		spanner_column_labels = only(unique(contents.spanner_column_labels)),
 		stubhead_label        = only(unique(contents.stubhead_label)),
 		contents.row_labels, 
@@ -235,13 +261,14 @@ function table_components(tbl; row_group_label_var=missing, column_label_var, va
 	specs = NamedTuple(specs)
 	
 	overall_row_labels = levels(getproperty(tbl, specs.row_label_var))
-
+	
 	# unstack columns, so that all groups have same columns
 	wide_tbl = unstack(tbl, column_label_var, value_var)
-
+	
 	# construct basic components
 	(; row_labels, body, row_group_label,
-	   spanner_column_labels, headers, stubhead_label
+	   spanner_column_labels, headers, stubhead_label,
+	   extra_headers, extra_body
 	) = basic_components(
 		wide_tbl, specs, overall_row_labels,
 		row_group_label_var
@@ -249,12 +276,12 @@ function table_components(tbl; row_group_label_var=missing, column_label_var, va
 			
 	N = sum(length.(headers))
 
-	body_vec = construct_body(row_labels, body, row_group_label, N)
-
+	body_vec = construct_body(row_labels, body, extra_body, row_group_label, N) #, 
+	
 	# construct top part
-	top_part = construct_top_part(spanner_column_labels, stubhead_label, headers)
+	top_part = construct_top_part(spanner_column_labels, stubhead_label, headers, extra_headers)
 
-	(; top_part, body_vec, N)
+	(; top_part, body_vec, N=N+length(extra_headers))
 end
 
 # ╔═╡ 7a7879f2-6117-4f9f-8080-0effa0d27711
@@ -289,19 +316,8 @@ md"""
 ### Test
 """
 
-# ╔═╡ 5e6db61d-c3ed-4f9c-8fac-8daa8799445a
-#=╠═╡
-let
-	row_label_var = :description
-	spanner_column_label_var = Symbol("Group_1")
-	gdf = groupby(params_df, spanner_column_label_var)[1]
-
-	table_helper(gdf, row_label_var, spanner_column_label_var)
-end
-  ╠═╡ =#
-
 # ╔═╡ 242b9caf-f630-413d-9db7-2fad867621f0
-# ╠═╡ disabled = true
+# ╠═╡ skip_as_script = true
 #=╠═╡
 df0 = DataFrame(
 	description = ["average life-time", "discount factor", "utility weight of housing", "elasticity of substitution", "strength of the comparison motive", "housing supply elasticity", "depreciation rate of housing", "flow of land permits"],
@@ -325,6 +341,44 @@ params_df = @chain df0 begin
 	@transform(:value = round(:value, sigdigits=2))
 	@aside _[10:5:64,:value] .= NaN
 	@subset!(!isnan(:value))
+end
+  ╠═╡ =#
+
+# ╔═╡ 5e6db61d-c3ed-4f9c-8fac-8daa8799445a
+#=╠═╡
+let
+	row_label_var = :description
+	spanner_column_label_var = Symbol("Group_1")
+	gdf = groupby(params_df, spanner_column_label_var)[1]
+
+	table_helper(gdf, row_label_var, spanner_column_label_var)
+end
+  ╠═╡ =#
+
+# ╔═╡ 0b18db95-05ff-4cf9-99c3-671f90ce5543
+md"""
+# Other tests
+"""
+
+# ╔═╡ 9ccd40cf-7722-421b-95be-658bd86ec336
+# ╠═╡ skip_as_script = true
+#=╠═╡
+new_df0 = DataFrame(
+	Moment = ["Employment share", "Expenditure share", "Mortgage-to-income"],
+	Target = [0.05, 0.162, 0.462],
+	Source = ["Kaplan et al. (2020)", "CEX (1982)", "DINA (1980)"],
+	Baseline = [0.04, 0.15, 0.45],
+	Extension = [0.06, 0.17, 0.47]
+)
+  ╠═╡ =#
+
+# ╔═╡ 009cb6eb-3be9-4c0b-a3b4-0bc444674df1
+#=╠═╡
+new_df = @chain new_df0 begin
+	stack(["Baseline", "Extension"], variable_name = "version", value_name = "Group 1")
+	@transform("Group 2" = @bycol reverse({"Group 1"}))
+	stack(["Group 1", "Group 2"], variable_name = :spanner)
+	@transform(:row_group = :Moment == "Employment share" ? "AAA" : "BBB")
 end
   ╠═╡ =#
 
@@ -357,7 +411,7 @@ usepackage("amsmath", "booktabs", "threeparttable")
 
 # ╔═╡ 6a422d82-db89-4345-a74e-d722224aa0f6
 table_buffer(content; packages=String[]) = """
-\\documentclass[preview]{standalone}
+\\documentclass{standalone}
 $(usepackage(packages...))
 \\usepackage{standalone}
 \\usepackage{caption}
@@ -365,11 +419,11 @@ $(usepackage(packages...))
 
 \\begin{document}
 
-\\begin{centering}
-\\begin{table}
+%\\begin{centering}
+%\\begin{table}
 $content
-\\end{table}
-\\end{centering}
+%\\end{table}
+%\\end{centering}
 
 \\end{document}
 
@@ -419,6 +473,44 @@ Here are some table notes.
 """ |> preview_latex_document
   ╠═╡ =#
 
+# ╔═╡ fb2c1d60-b5a1-4371-91c0-18d43cb7248a
+#=╠═╡
+# taken from MakieTeX
+function pdf2svg(pdf::Vector{UInt8}; page=1, kwargs...)
+     pdftocairo = Poppler_jll.pdftocairo() do exe
+         open(`$exe -f $page -l $page -svg - -`, "r+")
+     end
+
+     write(pdftocairo, pdf)
+
+     close(pdftocairo.in)
+
+     return read(pdftocairo.out, String)
+ end
+  ╠═╡ =#
+
+# ╔═╡ 6c680a1a-5ac5-4c2d-bb28-d1e3a5191cab
+# ╠═╡ skip_as_script = true
+#=╠═╡
+begin
+	struct HTMLDocument
+	    embedded
+	end
+	
+	function Base.show(io::IO, mime::MIME"text/html", doc::HTMLDocument)
+	    println(io, "<html>")
+	    show(io, mime, doc.embedded)
+	    println(io, "</html>")
+	end
+end
+  ╠═╡ =#
+
+# ╔═╡ b7b1d236-0eeb-4a00-acfe-f7395d130f7b
+# ╠═╡ skip_as_script = true
+#=╠═╡
+pdf2svg(pdf::String) = pdf2svg(Vector{UInt8}(pdf))
+  ╠═╡ =#
+
 # ╔═╡ 526f3979-2bcb-4f1e-af99-8411d0d61afa
 #=╠═╡
 function preview_latex_document(buffer; show_messages = false, basefile = tempname())
@@ -455,49 +547,23 @@ function preview_latex_table(content; packages=String[], kwargs...)
 end
   ╠═╡ =#
 
-# ╔═╡ fb2c1d60-b5a1-4371-91c0-18d43cb7248a
+# ╔═╡ f0dab509-638f-468b-910d-1d6ddfac2c6a
 #=╠═╡
-# taken from MakieTeX
-function pdf2svg(pdf::Vector{UInt8}; page=1, kwargs...)
-     pdftocairo = Poppler_jll.pdftocairo() do exe
-         open(`$exe -f $page -l $page -svg - -`, "r+")
-     end
-
-     write(pdftocairo, pdf)
-
-     close(pdftocairo.in)
-
-     return read(pdftocairo.out, String)
- end
-  ╠═╡ =#
-
-# ╔═╡ 6c680a1a-5ac5-4c2d-bb28-d1e3a5191cab
-# ╠═╡ disabled = true
-#=╠═╡
-begin
-	struct HTMLDocument
-	    embedded
-	end
-	
-	function Base.show(io::IO, mime::MIME"text/html", doc::HTMLDocument)
-	    println(io, "<html>")
-	    show(io, mime, doc.embedded)
-	    println(io, "</html>")
-	end
+@chain new_df begin
+	select(Not(:row_group))
+	grouped_table(row_label_var = :Moment, value_var = :value, spanner_column_label_var = :spanner, column_label_var = :version, extra_columns = [:Target, :Source] )
+	#Text
+	preview_latex_table
 end
-  ╠═╡ =#
-
-# ╔═╡ b7b1d236-0eeb-4a00-acfe-f7395d130f7b
-# ╠═╡ disabled = true
-#=╠═╡
-pdf2svg(pdf::String) = pdf2svg(Vector{UInt8}(pdf))
   ╠═╡ =#
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
+CategoricalArrays = "324d7699-5711-5eae-9e2f-1d82baa6b597"
 Chain = "8be319e6-bccf-4806-a6f7-6fae938471bc"
 DataAPI = "9a962f9c-6df0-11e9-0e5d-c546b8b5ee8a"
+DataFrameMacros = "75880514-38bc-4a95-a458-c2aea5a3a702"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
 LaTeXTabulars = "266f59ce-6e72-579c-98bb-27b39b5c037e"
@@ -506,8 +572,10 @@ Poppler_jll = "9c32591e-4766-534b-9725-b71a8799265b"
 tectonic_jll = "d7dd28d6-a5e6-559c-9131-7eb760cdacc5"
 
 [compat]
+CategoricalArrays = "~0.10.8"
 Chain = "~0.5.0"
 DataAPI = "~1.15.0"
+DataFrameMacros = "~0.4.1"
 DataFrames = "~1.5.0"
 LaTeXStrings = "~1.3.0"
 LaTeXTabulars = "~0.1.2"
@@ -522,7 +590,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.9.2"
 manifest_format = "2.0"
-project_hash = "2b8c2acf385c94013a43c4466f730c21efd6d2ea"
+project_hash = "6a6539b135cf2f9710353b3e2741c09ecf9a1621"
 
 [[deps.AbstractPlutoDingetjes]]
 deps = ["Pkg"]
@@ -556,6 +624,24 @@ deps = ["Artifacts", "Bzip2_jll", "CompilerSupportLibraries_jll", "Fontconfig_jl
 git-tree-sha1 = "4b859a208b2397a7a623a03449e4636bdb17bcf2"
 uuid = "83423d85-b0ee-5818-9007-b63ccbeb887a"
 version = "1.16.1+1"
+
+[[deps.CategoricalArrays]]
+deps = ["DataAPI", "Future", "Missings", "Printf", "Requires", "Statistics", "Unicode"]
+git-tree-sha1 = "1568b28f91293458345dabba6a5ea3f183250a61"
+uuid = "324d7699-5711-5eae-9e2f-1d82baa6b597"
+version = "0.10.8"
+
+    [deps.CategoricalArrays.extensions]
+    CategoricalArraysJSONExt = "JSON"
+    CategoricalArraysRecipesBaseExt = "RecipesBase"
+    CategoricalArraysSentinelArraysExt = "SentinelArrays"
+    CategoricalArraysStructTypesExt = "StructTypes"
+
+    [deps.CategoricalArrays.weakdeps]
+    JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
+    RecipesBase = "3cdcf5f2-1ef4-517c-9805-6587b60abb01"
+    SentinelArrays = "91c51154-3ec4-41a3-a24f-3f23e20d615c"
+    StructTypes = "856f2bd8-1eba-4b0a-8007-ebc267875bd4"
 
 [[deps.Chain]]
 git-tree-sha1 = "8c4920235f6c561e401dfe569beb8b924adad003"
@@ -592,6 +678,12 @@ version = "4.1.1"
 git-tree-sha1 = "8da84edb865b0b5b0100c0666a9bc9a0b71c553c"
 uuid = "9a962f9c-6df0-11e9-0e5d-c546b8b5ee8a"
 version = "1.15.0"
+
+[[deps.DataFrameMacros]]
+deps = ["DataFrames", "MacroTools"]
+git-tree-sha1 = "5275530d05af21f7778e3ef8f167fb493999eea1"
+uuid = "75880514-38bc-4a95-a458-c2aea5a3a702"
+version = "0.4.1"
 
 [[deps.DataFrames]]
 deps = ["Compat", "DataAPI", "Future", "InlineStrings", "InvertedIndices", "IteratorInterfaceExtensions", "LinearAlgebra", "Markdown", "Missings", "PooledArrays", "PrettyTables", "Printf", "REPL", "Random", "Reexport", "SentinelArrays", "SnoopPrecompile", "SortingAlgorithms", "Statistics", "TableTraits", "Tables", "Unicode"]
@@ -865,6 +957,12 @@ git-tree-sha1 = "65f28ad4b594aebe22157d6fac869786a255b7eb"
 uuid = "6c6e2e6c-3030-632d-7369-2d6c69616d65"
 version = "0.1.4"
 
+[[deps.MacroTools]]
+deps = ["Markdown", "Random"]
+git-tree-sha1 = "42324d08725e200c23d4dfb549e0d5d89dede2d2"
+uuid = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
+version = "0.5.10"
+
 [[deps.Markdown]]
 deps = ["Base64"]
 uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
@@ -987,6 +1085,12 @@ uuid = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 git-tree-sha1 = "45e428421666073eab6f2da5c9d310d99bb12f9b"
 uuid = "189a3867-3050-52da-a836-e630ba90ab69"
 version = "1.2.2"
+
+[[deps.Requires]]
+deps = ["UUIDs"]
+git-tree-sha1 = "838a3a4188e2ded87a4f9f184b4b0d78a1e91cb7"
+uuid = "ae029012-a4dd-5104-9daa-d747884805df"
+version = "1.3.0"
 
 [[deps.SHA]]
 uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
@@ -1205,9 +1309,15 @@ version = "0.13.1+0"
 # ╠═fcd84f30-2e4f-47f7-8cb5-5a8ae73355a5
 # ╠═b0b4453b-9fdb-4f21-8f10-8efeb0bd1163
 # ╟─d0624fa7-c9e3-444c-9b5e-6e6372a213c2
+# ╠═2470bd26-71c9-4e89-aa0a-7919664a303f
+# ╠═9e0a05f9-113d-482c-85b9-3f4017fadce6
 # ╠═5e6db61d-c3ed-4f9c-8fac-8daa8799445a
 # ╠═242b9caf-f630-413d-9db7-2fad867621f0
 # ╠═cc264088-16bb-4487-ac24-dd2a17708673
+# ╠═0b18db95-05ff-4cf9-99c3-671f90ce5543
+# ╠═9ccd40cf-7722-421b-95be-658bd86ec336
+# ╠═009cb6eb-3be9-4c0b-a3b4-0bc444674df1
+# ╠═f0dab509-638f-468b-910d-1d6ddfac2c6a
 # ╟─235e7816-b0d2-4a98-bba5-12351f9a8d51
 # ╠═f1df3c8b-0551-4e91-90bd-70a9d36528dc
 # ╠═f9d0c823-7443-48fc-9c0a-d1407e4ea2ae
