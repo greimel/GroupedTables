@@ -28,6 +28,12 @@ using DataFrameMacros
 using CategoricalArrays: categorical, levels!
   ╠═╡ =#
 
+# ╔═╡ 0e498fc8-053c-448c-a3c1-f1d96f21b42c
+# ╠═╡ skip_as_script = true
+#=╠═╡
+using Random
+  ╠═╡ =#
+
 # ╔═╡ f1df3c8b-0551-4e91-90bd-70a9d36528dc
 # ╠═╡ skip_as_script = true
 #=╠═╡
@@ -121,17 +127,25 @@ end
 drop_if_present(df, col) = df
 
 # ╔═╡ b0b4453b-9fdb-4f21-8f10-8efeb0bd1163
-function table_helper(tbl, row_label_var, row_labels=getproperty(tbl, row_label_var))
-	body = @chain begin
-		DataFrame(row_label_var => row_labels)
-		leftjoin!(tbl, on = row_label_var)
+function table_helper(tbl, row_label_var, extra_columns, row_labels=getproperty(tbl, row_label_var))
+	tmp = DataFrame(row_label_var => row_labels)
+
+	xtra = @chain tbl begin
+		select(extra_columns, row_label_var)
+		leftjoin(tmp, _, on=row_label_var, order=:left)
+		select(Not(row_label_var))
+	end
+	
+	body = @chain tbl begin
+		select(Not(extra_columns))
+		leftjoin(tmp, _, on=row_label_var, order=:left)
 		select(Not(row_label_var))
 		@aside headers = reshape(names(_), 1, :)
 		Matrix
 		coalesce.(_, "")
 	end
 
-	(; headers, body, row_labels)
+	(; headers, body, xtra, row_labels)
 end
 
 # ╔═╡ fcd84f30-2e4f-47f7-8cb5-5a8ae73355a5
@@ -150,15 +164,12 @@ function table_helper_row_group(
 		grouped_tbl = [missing => wide_tbl]
 	end
 
-	contents = map(grouped_tbl) do (gkey, tbl)
-		xtra = select(tbl, extra_columns)
-		tbl  = select(tbl, Not(extra_columns))
-		
+	contents = map(grouped_tbl) do (gkey, tbl)		
 		out = table_helper(
 			drop_if_present(tbl, spanner_column_label_var), 
-			row_label_var, row_labels)
+			row_label_var, extra_columns, row_labels)
 		spanner_column_label = ismissing(gkey) ? missing : only(values(gkey))
-		(; out..., spanner_column_label, xtra)
+		(; out..., spanner_column_label)
 	end |> DataFrame
 
 	xtra = only(unique(contents.xtra))
@@ -369,7 +380,7 @@ new_df0 = DataFrame(
 	Source = ["Kaplan et al. (2020)", "CEX (1982)", "DINA (1980)"],
 	Baseline = [0.04, 0.15, 0.45],
 	Extension = [0.06, 0.17, 0.47]
-)
+) |> shuffle
   ╠═╡ =#
 
 # ╔═╡ 009cb6eb-3be9-4c0b-a3b4-0bc444674df1
@@ -550,8 +561,8 @@ end
 # ╔═╡ f0dab509-638f-468b-910d-1d6ddfac2c6a
 #=╠═╡
 @chain new_df begin
-	select(Not(:row_group))
-	grouped_table(row_label_var = :Moment, value_var = :value, spanner_column_label_var = :spanner, column_label_var = :version, extra_columns = [:Target, :Source] )
+	#select(Not(:row_group))
+	grouped_table(row_label_var = :Moment, row_group_label_var = :row_group, value_var = :value, spanner_column_label_var = :spanner, column_label_var = :version, extra_columns = [:Target, :Source] )
 	#Text
 	preview_latex_table
 end
@@ -569,6 +580,7 @@ LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
 LaTeXTabulars = "266f59ce-6e72-579c-98bb-27b39b5c037e"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 Poppler_jll = "9c32591e-4766-534b-9725-b71a8799265b"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 tectonic_jll = "d7dd28d6-a5e6-559c-9131-7eb760cdacc5"
 
 [compat]
@@ -590,7 +602,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.9.2"
 manifest_format = "2.0"
-project_hash = "6a6539b135cf2f9710353b3e2741c09ecf9a1621"
+project_hash = "16dccec78ff9f8d5608164df5c092c3c354cdbc6"
 
 [[deps.AbstractPlutoDingetjes]]
 deps = ["Pkg"]
@@ -1316,6 +1328,7 @@ version = "0.13.1+0"
 # ╠═cc264088-16bb-4487-ac24-dd2a17708673
 # ╠═0b18db95-05ff-4cf9-99c3-671f90ce5543
 # ╠═9ccd40cf-7722-421b-95be-658bd86ec336
+# ╠═0e498fc8-053c-448c-a3c1-f1d96f21b42c
 # ╠═009cb6eb-3be9-4c0b-a3b4-0bc444674df1
 # ╠═f0dab509-638f-468b-910d-1d6ddfac2c6a
 # ╟─235e7816-b0d2-4a98-bba5-12351f9a8d51
