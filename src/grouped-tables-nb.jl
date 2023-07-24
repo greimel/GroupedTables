@@ -267,7 +267,12 @@ function basic_components(
 end
 
 # ╔═╡ 3a08e6fa-46ca-4615-b202-e211f4cce424
-function table_components(tbl; row_group_label_var=missing, column_label_var, value_var, specs...)
+function table_components(tbl; 
+				row_group_label_var=missing, 
+				column_label_var, value_var, 
+				show_column_numbers=false,
+				specs...
+			)
 	
 	specs = NamedTuple(specs)
 	
@@ -292,7 +297,13 @@ function table_components(tbl; row_group_label_var=missing, column_label_var, va
 	# construct top part
 	top_part = construct_top_part(spanner_column_labels, stubhead_label, headers, extra_headers)
 
-	(; top_part, body_vec, N=N+length(extra_headers))
+	N_extra = length(extra_headers)
+	if show_column_numbers
+		column_numbers = ["" ["($i)" for i in 1:N]... fill("", 1, N_extra)]
+		push!(top_part, column_numbers)
+	end
+	
+	(; top_part, body_vec, N=N + N_extra)
 end
 
 # ╔═╡ 7a7879f2-6117-4f9f-8080-0effa0d27711
@@ -562,7 +573,7 @@ end
 #=╠═╡
 @chain new_df begin
 	#select(Not(:row_group))
-	grouped_table(row_label_var = :Moment, row_group_label_var = :row_group, value_var = :value, spanner_column_label_var = :spanner, column_label_var = :version, extra_columns = [:Target, :Source] )
+	grouped_table(row_label_var = :Moment, row_group_label_var = :row_group, value_var = :value, spanner_column_label_var = :spanner, column_label_var = :version, extra_columns = [:Target, :Source], show_column_numbers=true)
 	#Text
 	preview_latex_table
 end
