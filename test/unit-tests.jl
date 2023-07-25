@@ -10,7 +10,7 @@ using Chain, DataFrames, DataFrameMacros
 	@subset(:group == "Preferences", :Group_2 == "AA", :Group_3 == "Red")
 	select(Not([:group, :Group_2, :Group_3, :calibration]))
 	unstack(:Group_1, :value)
-	table_helper(:description, Symbol[])
+	table_helper(:description, Symbol[], Symbol[])
 	@aside @testset "table_helper" begin
 		@test _.headers == ["good" "bad"]
 		@test _.body == [45 1; 0.05 0.022; 0.5 1.0; 1.0 ""; 0.31 0.15]

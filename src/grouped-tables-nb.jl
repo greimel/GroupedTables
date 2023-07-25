@@ -62,12 +62,20 @@ md"""
 """
 
 # ╔═╡ c94f9cfa-3ef4-4a7d-a350-188d64492be3
-function construct_body(row_labels, body, extra_body, row_group_label, N)
-	mapreduce(vcat, zip(row_labels, body, extra_body, row_group_label)) do (rg_row_labels, rg_body, rg_xtr_body, rg_label)
+function construct_body(row_labels, body, extra_body, extra_body_pre, row_group_label, N)
+	mapreduce(vcat, zip(row_labels, body, extra_body, extra_body_pre, row_group_label)) do (rg_row_labels, rg_body, rg_xtr_body, rg_xtr_body_pre, rg_label)
 		label = ismissing(rg_label) ? [] : [[MultiColumn(N+1, :l, "\\emph{$rg_label}")]]
+		body = rg_body
+		if !isempty(rg_xtr_body_pre)
+			body = [rg_xtr_body_pre body]
+		end
+		if !isempty(rg_xtr_body)
+			body = [body rg_xtr_body]
+		end
+		
 		[
 			label..., 
-			isempty(rg_xtr_body) ? [rg_row_labels rg_body] : [rg_row_labels rg_body rg_xtr_body]
+			[rg_row_labels body]
 		]
 	end
 end
@@ -79,24 +87,25 @@ md"""
 
 # ╔═╡ d10afd7a-1066-41db-8914-ca3ff760cfbe
 # construct top part with spanner column labels
-function construct_top_part(spanner_column_labels, stubhead_label, headers, extra_headers)
+function construct_top_part(spanner_column_labels, stubhead_label, headers, extra_headers, extra_headers_pre)
+	skip = 1 + length(extra_headers_pre)
 	ns = length.(headers)
-	cns = cumsum([1; ns])
+	cns = cumsum([skip; ns])
 	
 	[
 		# spanner column labels
-		[""; MultiColumn.(ns, :c, spanner_column_labels)],
+		[fill("", skip); MultiColumn.(ns, :c, spanner_column_labels)],
 		# broken midrules
 		(CMidRule("l{2pt}r{2pt}", cns[i] + 1 , cns[i+1]) for i ∈ 1:(length(cns)-1))...,
 		# headers
-		[stubhead_label headers... extra_headers...]
+		[stubhead_label extra_headers_pre... headers... extra_headers...]
 	]
 end
 
 # ╔═╡ 080ec2da-43ec-4fc6-b3a5-f17d186b1cbc
 # construct top part without spanner column labels
-construct_top_part(spanner_column_labels::Array{Missing}, stubhead_label, headers, extra_headers) =
-	[[stubhead_label headers... extra_headers...]]
+construct_top_part(spanner_column_labels::Array{Missing}, stubhead_label, headers, extra_headers, extra_headers_pre) =
+	[[stubhead_label extra_headers_pre... headers... extra_headers...]]
 
 # ╔═╡ e4303bac-27cb-4c9c-b08a-58ea221d6d77
 md"""
@@ -127,11 +136,17 @@ end
 drop_if_present(df, col) = df
 
 # ╔═╡ b0b4453b-9fdb-4f21-8f10-8efeb0bd1163
-function table_helper(tbl, row_label_var, extra_columns, row_labels=getproperty(tbl, row_label_var))
+function table_helper(tbl, row_label_var, extra_columns, extra_columns_pre, row_labels=getproperty(tbl, row_label_var))
 	tmp = DataFrame(row_label_var => row_labels)
 
 	xtra = @chain tbl begin
 		select(extra_columns, row_label_var)
+		leftjoin(tmp, _, on=row_label_var, order=:left)
+		select(Not(row_label_var))
+	end
+
+	xtra_pre = @chain tbl begin
+		select(extra_columns_pre, row_label_var)
 		leftjoin(tmp, _, on=row_label_var, order=:left)
 		select(Not(row_label_var))
 	end
@@ -145,13 +160,14 @@ function table_helper(tbl, row_label_var, extra_columns, row_labels=getproperty(
 		coalesce.(_, "")
 	end
 
-	(; headers, body, xtra, row_labels)
+	(; headers, body, xtra, xtra_pre, row_labels)
 end
 
 # ╔═╡ fcd84f30-2e4f-47f7-8cb5-5a8ae73355a5
 function table_helper_row_group(
 			wide_tbl;
 			extra_columns = Symbol[],
+			extra_columns_pre = Symbol[],
 			spanner_column_label_var=missing,
 			row_label_var, overall_row_labels
 		)
@@ -167,7 +183,7 @@ function table_helper_row_group(
 	contents = map(grouped_tbl) do (gkey, tbl)		
 		out = table_helper(
 			drop_if_present(tbl, spanner_column_label_var), 
-			row_label_var, extra_columns, row_labels)
+			row_label_var, extra_columns, extra_columns_pre, row_labels)
 		spanner_column_label = ismissing(gkey) ? missing : only(values(gkey))
 		(; out..., spanner_column_label)
 	end |> DataFrame
@@ -175,6 +191,10 @@ function table_helper_row_group(
 	xtra = only(unique(contents.xtra))
 	extra_headers = reshape(names(xtra), 1, :)
 	extra_body = Matrix(xtra)
+
+	xtra_pre = only(unique(contents.xtra_pre))
+	extra_headers_pre = reshape(names(xtra_pre), 1, :)
+	extra_body_pre = Matrix(xtra_pre)
 	
 	# determine non-empty columns
 	body = hcat(contents.body...)
@@ -187,7 +207,9 @@ function table_helper_row_group(
 		contents.headers,
 		row_labels, body,
 		extra_headers,
+		extra_headers_pre,
 		extra_body,
+		extra_body_pre,
 #		row_labels_and_body = [row_labels body],
 		stubhead_label = string(row_label_var),
 		nonempty_columns,		
@@ -214,8 +236,9 @@ function basic_components(
 	)
 	
 	(; 
-		body, headers, contents.extra_headers,
+		body, headers, contents.extra_headers, contents.extra_headers_pre,
 		extra_body = [contents.extra_body],
+		extra_body_pre = [contents.extra_body_pre],
 		contents.spanner_column_labels,
 		contents.stubhead_label,
 		row_labels = [contents.row_labels],
@@ -258,7 +281,9 @@ function basic_components(
 	(; 
 		body, headers, 
 		extra_headers = only(unique(contents.extra_headers)),
+		extra_headers_pre = only(unique(contents.extra_headers_pre)),
 		contents.extra_body,
+		contents.extra_body_pre,
 		spanner_column_labels = only(unique(contents.spanner_column_labels)),
 		stubhead_label        = only(unique(contents.stubhead_label)),
 		contents.row_labels, 
@@ -284,7 +309,7 @@ function table_components(tbl;
 	# construct basic components
 	(; row_labels, body, row_group_label,
 	   spanner_column_labels, headers, stubhead_label,
-	   extra_headers, extra_body
+	   extra_headers, extra_headers_pre, extra_body, extra_body_pre
 	) = basic_components(
 		wide_tbl, specs, overall_row_labels,
 		row_group_label_var
@@ -292,28 +317,38 @@ function table_components(tbl;
 			
 	N = sum(length.(headers))
 
-	body_vec = construct_body(row_labels, body, extra_body, row_group_label, N) #, 
+	body_vec = construct_body(row_labels, body, extra_body, extra_body_pre, row_group_label, N) #, 
 	
 	# construct top part
-	top_part = construct_top_part(spanner_column_labels, stubhead_label, headers, extra_headers)
+	top_part = construct_top_part(spanner_column_labels, stubhead_label, headers, extra_headers, extra_headers_pre)
 
 	N_extra = length(extra_headers)
+	N_extra_pre = length(extra_headers_pre)
 	if show_column_numbers
-		column_numbers = ["" ["($i)" for i in 1:N]... fill("", 1, N_extra)]
+		column_numbers = [
+			"" fill("", 1, N_extra_pre) ["($i)" for i in 1:N]... fill("", 1, N_extra)]
 		push!(top_part, column_numbers)
 	end
 	
-	(; top_part, body_vec, N=N + N_extra)
+	(; top_part, body_vec, N, N_extra, N_extra_pre)
 end
 
 # ╔═╡ 7a7879f2-6117-4f9f-8080-0effa0d27711
-function grouped_table(tbl; caption=missing, specs...)
+function grouped_table(tbl; caption=missing,
+				row_label_al = "l",
+				extra_al = "c",
+				extra_pre_al = "c",
+				body_al = "c",
+				specs...
+		)
 
-	(; top_part, body_vec, N) = table_components(tbl; specs...)
+	(; top_part, body_vec, N, N_extra, N_extra_pre) = table_components(tbl; specs...)
 
 	tabular = latex_tabular(
 		String,
-		Tabular("l" * "c"^N),
+		Tabular(
+			row_label_al * extra_pre_al^N_extra_pre * body_al^N * extra_al^N_extra
+		),
 		[
 			Rule(:top);
 			top_part;
@@ -373,7 +408,7 @@ let
 	spanner_column_label_var = Symbol("Group_1")
 	gdf = groupby(params_df, spanner_column_label_var)[1]
 
-	table_helper(gdf, row_label_var, spanner_column_label_var)
+	table_helper(gdf, row_label_var, spanner_column_label_var, Symbol[], Symbol[])
 end
   ╠═╡ =#
 
@@ -573,7 +608,10 @@ end
 #=╠═╡
 @chain new_df begin
 	#select(Not(:row_group))
-	grouped_table(row_label_var = :Moment, row_group_label_var = :row_group, value_var = :value, spanner_column_label_var = :spanner, column_label_var = :version, extra_columns = [:Target, :Source], show_column_numbers=true)
+	grouped_table(row_label_var = :Moment, row_group_label_var = :row_group, value_var = :value, spanner_column_label_var = :spanner, column_label_var = :version, 
+	extra_columns_pre = [:Source, :Target],
+	extra_columns = [:Target, :Source], show_column_numbers=true,
+	extra_pre_al = "l")
 	#Text
 	preview_latex_table
 end
