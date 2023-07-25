@@ -1,7 +1,7 @@
 name = "GroupedTables"
 uuid = "07903412-be78-4dbf-a59e-1531839e8cd4"
 authors = ["Fabian Greimel <fabgrei@gmail.com> and contributors"]
-version = "0.2.3"
+version = "0.2.4"
 
 [deps]
 CategoricalArrays = "324d7699-5711-5eae-9e2f-1d82baa6b597"

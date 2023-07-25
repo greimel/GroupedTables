@@ -152,7 +152,7 @@ function table_helper(tbl, row_label_var, extra_columns, extra_columns_pre, row_
 	end
 	
 	body = @chain tbl begin
-		select(Not(extra_columns))
+		select(Not([extra_columns; extra_columns_pre]))
 		leftjoin(tmp, _, on=row_label_var, order=:left)
 		select(Not(row_label_var))
 		@aside headers = reshape(names(_), 1, :)
@@ -609,8 +609,8 @@ end
 @chain new_df begin
 	#select(Not(:row_group))
 	grouped_table(row_label_var = :Moment, row_group_label_var = :row_group, value_var = :value, spanner_column_label_var = :spanner, column_label_var = :version, 
-	extra_columns_pre = [:Source, :Target],
-	extra_columns = [:Target, :Source], show_column_numbers=true,
+	extra_columns_pre = [:Source],
+	extra_columns = [:Target], show_column_numbers=true,
 	extra_pre_al = "l")
 	#Text
 	preview_latex_table
