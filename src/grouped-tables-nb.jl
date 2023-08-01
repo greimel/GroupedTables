@@ -61,10 +61,13 @@ md"""
 ## Body
 """
 
+# ╔═╡ 48b1058f-f9af-4380-9a7a-f5b50d8dfa85
+default_row_group_label_style(label) = "\\emph{$label}"
+
 # ╔═╡ c94f9cfa-3ef4-4a7d-a350-188d64492be3
-function construct_body(row_labels, body, extra_body, extra_body_pre, row_group_label, N)
+function construct_body(row_labels, body, extra_body, extra_body_pre, row_group_label, N; row_group_label_style=default_row_group_label_styel)
 	mapreduce(vcat, zip(row_labels, body, extra_body, extra_body_pre, row_group_label)) do (rg_row_labels, rg_body, rg_xtr_body, rg_xtr_body_pre, rg_label)
-		label = ismissing(rg_label) ? [] : [[MultiColumn(N+1, :l, "\\emph{$rg_label}")]]
+		label = ismissing(rg_label) ? [] : [[MultiColumn(N+1, :l, row_group_label_style(rg_label))]]
 		body = rg_body
 		if !isempty(rg_xtr_body_pre)
 			body = [rg_xtr_body_pre body]
@@ -296,6 +299,7 @@ function table_components(tbl;
 				row_group_label_var=missing, 
 				column_label_var, value_var, 
 				show_column_numbers=false,
+				row_group_label_style=default_row_group_label_style,
 				specs...
 			)
 	
@@ -317,7 +321,7 @@ function table_components(tbl;
 			
 	N = sum(length.(headers))
 
-	body_vec = construct_body(row_labels, body, extra_body, extra_body_pre, row_group_label, N) #, 
+	body_vec = construct_body(row_labels, body, extra_body, extra_body_pre, row_group_label, N; row_group_label_style) #, 
 	
 	# construct top part
 	top_part = construct_top_part(spanner_column_labels, stubhead_label, headers, extra_headers, extra_headers_pre)
@@ -611,7 +615,8 @@ end
 	grouped_table(row_label_var = :Moment, row_group_label_var = :row_group, value_var = :value, spanner_column_label_var = :spanner, column_label_var = :version, 
 	extra_columns_pre = [:Source],
 	extra_columns = [:Target], show_column_numbers=true,
-	extra_pre_al = "l")
+	extra_pre_al = "l",
+	row_group_label_style = x -> "\\bfseries{\\emph{$x}}")
 	#Text
 	preview_latex_table
 end
@@ -1357,6 +1362,7 @@ version = "0.13.1+0"
 # ╠═7a7879f2-6117-4f9f-8080-0effa0d27711
 # ╠═3a08e6fa-46ca-4615-b202-e211f4cce424
 # ╟─8c8c7f03-11c9-4258-9303-fe8d2dbd484d
+# ╠═48b1058f-f9af-4380-9a7a-f5b50d8dfa85
 # ╠═c94f9cfa-3ef4-4a7d-a350-188d64492be3
 # ╟─085e7681-b1e2-48c6-a024-7ffe3205a96a
 # ╠═d10afd7a-1066-41db-8914-ca3ff760cfbe
